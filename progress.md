@@ -25,7 +25,8 @@ Branch: `sv08-original-sovol-eddy` from `upstream/master`
 | stm32f103 firmware + data dictionary built from this tree | pass (`out/klipper.dict`) |
 | `scripts/test_klippy.py` on `printer-sovol-sv08-2023.cfg` (both MCUs) | pass |
 | `G28 X` / `G28 Y` / moves / fans / LED through the homing override | pass (exit 0) |
-| `G28` (all axes) | stops with "Must calibrate probe_eddy_current first" - expected for an uncalibrated eddy, proves the override template and probe wiring run |
+| `G28 Z` alone | homes X and Y, parks the sensor over the bed, then stops with "Must calibrate probe_eddy_current first" - expected for an uncalibrated eddy, proves the override template and probe wiring run |
+| `G28` (all axes) | same expected stop; no config or template errors |
 
 Toolchain note: no cross-compiler and no `sudo` here, so `gcc-arm-none-eabi`
 was downloaded with `apt-get download` and unpacked into `/tmp/armtc/prefix`
@@ -45,7 +46,11 @@ was downloaded with `apt-get download` and unpacked into `/tmp/armtc/prefix`
 * Firmware images have not been built for the real boards (no menuconfig
   `.config` committed on purpose - build settings are documented in
   `SV08-MIGRATION.md` stage 5).
-* Branch not pushed to `origin` yet.
+* Branch pushed to `origin/sv08-original-sovol-eddy`
+  (`92080aa4e`, `43c64f664`).  GitHub Actions reports `total_count: 0` for
+  the fork, so CI has not actually run there - enable Actions on
+  `johndahl/klipper` (Settings → Actions) if you want the `printers.test`
+  entry validated upstream, or open a PR against upstream to get it.
 
 ## Next
 
