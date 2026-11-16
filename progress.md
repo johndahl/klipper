@@ -10,8 +10,11 @@ Branch: `sv08-original-sovol-eddy` from `upstream/master`
 * `config/printer-sovol-sv08-2023.cfg` - full mainline config for the SV08
   with the original toolhead and the native `[probe_eddy_current]` /
   `ldc1612` driver (software I2C on `extra_mcu:PB6/PB7`).
-* Registered that config in `test/klippy/printers.test`
-  (`DICTIONARY stm32f103.dict extra_mcu=stm32f103.dict`).
+* `test/klippy/sv08.test` - harness entry that loads the config with both
+  MCU dictionaries.  It is deliberately *not* in `printers.test`: that
+  suite drives every example config with `move.gcode`, whose first command
+  is a full `G28`, and `G28 Z` needs an eddy calibration that must not ship
+  inside an example config.  `SV08-MIGRATION.md` explains the trade-off.
 * `SV08-MIGRATION.md` - host install, flash backups, Katapult, firmware,
   commissioning order, eddy calibration.
 * `plan.md` - staged plan with gates.
@@ -23,10 +26,21 @@ Branch: `sv08-original-sovol-eddy` from `upstream/master`
 | `scripts/check_whitespace.sh` | pass |
 | `klippy/klippy.py --import-test` (Python 3.14) | pass |
 | stm32f103 firmware + data dictionary built from this tree | pass (`out/klipper.dict`) |
-| `scripts/test_klippy.py` on `printer-sovol-sv08-2023.cfg` (both MCUs) | pass |
+| `scripts/test_klippy.py -d /tmp/kdicts test/klippy/sv08.test` | pass (exit 0, "All 1 test cases passed") |
+| `test/klippy/printers.test` back to upstream state (SV08 entry removed) | `git diff` against the pre-change commit is empty |
 | `G28 X` / `G28 Y` / moves / fans / LED through the homing override | pass (exit 0) |
 | `G28 Z` alone | homes X and Y, parks the sensor over the bed, then stops with "Must calibrate probe_eddy_current first" - expected for an uncalibrated eddy, proves the override template and probe wiring run |
 | `G28` (all axes) | same expected stop; no config or template errors |
+
+**Correction (I2C).**  The config comment originally claimed Klipper does
+not work around the STM32F1 I2C errata.  It does: `i2c_busy_errata()` in
+`src/stm32/i2c.c` clears the F1 lock-up at bus init by bit-banging nine
+SCL pulses with GPIO until the peripheral reports idle.  The real reason to
+use software I2C is speed - `i2c_setup()` programs `CCR`/`TRISE` for a
+fixed 100 kHz and never reads `rate`, so `i2c_speed` is ignored on an
+`[i2c_bus]`, while `ldc1612` defaults to 400 kHz and needs three transfers
+per sample at 400 Hz.  Comment fixed in the config; full rationale in
+`SV08-MIGRATION.md`.
 
 Toolchain note: no cross-compiler and no `sudo` here, so `gcc-arm-none-eabi`
 was downloaded with `apt-get download` and unpacked into `/tmp/armtc/prefix`
@@ -49,8 +63,8 @@ was downloaded with `apt-get download` and unpacked into `/tmp/armtc/prefix`
 * Branch pushed to `origin/sv08-original-sovol-eddy`
   (`92080aa4e`, `43c64f664`).  GitHub Actions reports `total_count: 0` for
   the fork, so CI has not actually run there - enable Actions on
-  `johndahl/klipper` (Settings → Actions) if you want the `printers.test`
-  entry validated upstream, or open a PR against upstream to get it.
+  `johndahl/klipper` (Settings → Actions) if you want `sv08.test` validated
+  by CI, or open a PR against upstream to get it.
 
 ## Next
 

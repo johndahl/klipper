@@ -1,0 +1,18 @@
+# Basic sanity check on the SV08 config
+# Test case for the Sovol SV08 (2023, original toolhead) config
+CONFIG ../../config/printer-sovol-sv08-2023.cfg
+DICTIONARY stm32f103.dict extra_mcu=stm32f103.dict
+
+# Z on this machine is a probe_eddy_current sensor.  It can only report a
+# position once the sensor has been calibrated on the real machine
+# (PROBE_EDDY_CURRENT_CALIBRATE), and that calibration is deliberately not
+# shipped in the example config, so "G28" (as used by printers.test) cannot
+# work here.  Home X and Y sensorlessly and fake Z instead, which still
+# exercises both MCUs, the toolhead LDC1612 sensor on its software I2C bus,
+# the sensorless homing pins and all four axes.
+G28 X
+G28 Y
+SET_KINEMATIC_POSITION Z=5 SET_HOMED=z
+G1 Z10 F600
+G1 X10 Y10 F3000
+GET_POSITION

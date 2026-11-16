@@ -191,18 +191,52 @@ clean `QUAD_GANTRY_LEVEL`.  Re-check `mesh_min`/`mesh_max` against the actual
 probe offsets before a full-bed mesh, otherwise the first scan runs into the
 rails.
 
+## Why the eddy sits on software I2C
+
+The toolhead header exposes PB6/PB7, which on the F103 *are* the hardware
+I2C1 pins, so hardware I2C is physically available and is not avoided for
+wiring reasons.  It is avoided for speed: Klipper's STM32 hardware I2C
+driver ignores the requested rate - `i2c_setup()` in `src/stm32/i2c.c`
+programs `CCR`/`TRISE` for a fixed 100 kHz and never reads `rate`, so
+`i2c_speed` has no effect on an `[i2c_bus]`.  The `ldc1612` driver defaults
+to 400 kHz and performs three transfers per sample at its 400 Hz sample
+rate, which does not fit comfortably in a 100 kHz budget.  Software I2C
+(`i2c_software_scl_pin` / `i2c_software_sda_pin`) does honour `i2c_speed`,
+so the bus runs at 400 kHz.
+
+The F1 I2C lock-up errata is *not* a reason to avoid hardware I2C here:
+`src/stm32/i2c.c` works around it (`i2c_busy_errata()`, applied at bus init
+on F1 parts) by clocking nine SCL pulses with GPIO until the peripheral
+reports idle.  It only matters if those pins are shared with something else.
+
 ## Reproducing the checks that were run in this repo
 
-The config is registered in `test/klippy/printers.test`, so upstream CI
-validates it.  Locally:
+The config has its own harness file, `test/klippy/sv08.test`, and CI runs
+every `test/klippy/*.test` (see `scripts/ci-build.sh`).  It is deliberately
+*not* listed in `printers.test`: that suite drives every example config
+with `move.gcode`, which starts with a full `G28`, and `G28 Z` on this
+machine uses the eddy probe - which refuses to report a position until
+`PROBE_EDDY_CURRENT_CALIBRATE` has been run on the real machine.  Shipping
+a calibration in the example config would be worse (wrong Z on every
+machine that uses it), so `sv08.test` homes X and Y sensorlessly and sets Z
+with `SET_KINEMATIC_POSITION` instead.  Upstream does the same kind of
+thing the other way round: `config/sample-cartographer-v3.cfg` is not in
+`printers.test` either, and eddy is covered by `test/klippy/eddy.test`
+against a fixture config (`test/klippy/eddy.cfg`) that does carry a
+`calibrate =` block.
 
 ```bash
+# 0. host python deps for the harness (cffi, jinja2, greenlet, pyserial)
+python3 -m venv /tmp/kenv && /tmp/kenv/bin/pip install cffi jinja2 \
+    greenlet pyserial
+
 # 1. build the stm32f103 data dictionary (needs gcc-arm-none-eabi)
 cp test/configs/stm32f103.config .config && make olddefconfig && make
 mkdir -p /tmp/kdicts && cp out/klipper.dict /tmp/kdicts/stm32f103.dict
 
 # 2. run the config through klippy's own test harness
-./scripts/test_klippy.py -d /tmp/kdicts test/klippy/printers.test
+/tmp/kenv/bin/python scripts/test_klippy.py -d /tmp/kdicts \
+    test/klippy/sv08.test
 
 # 3. whitespace + import checks used by CI
 ./scripts/check_whitespace.sh
