@@ -146,6 +146,8 @@ CONFIG ../../config/printer-monoprice-mini-delta-2017.cfg
 CONFIG ../../config/printer-monoprice-select-mini-v2-2018.cfg
 
 # Printers using the stm32f103
+DICTIONARY stm32f103.dict extra_mcu=stm32f103.dict
+CONFIG ../../config/printer-sovol-sv08-2023.cfg
 DICTIONARY stm32f103.dict
 CONFIG ../../config/generic-bigtreetech-skr-cr6-v1.0.cfg
 CONFIG ../../config/generic-bigtreetech-skr-e3-dip.cfg
